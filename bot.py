@@ -522,7 +522,9 @@ def help(sc, data):
         if "channel" in data.keys():
             channel = data["channel"]
             msg = "{0:15}{1}\n".format("!help", help.__doc__)
-            for cmd in COMMANDS:
+            temp_cmds = COMMANDS
+            temp_cmds = sorted(temp_cmds)
+            for cmd in temp_cmds:
                 if cmd!="!help":
                     msg += "{0:15}{1}\n".format(cmd, COMMANDS[cmd].__doc__)
             msg.expandtabs
