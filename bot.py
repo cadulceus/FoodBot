@@ -1,7 +1,7 @@
 #-*- coding: utf-8 -*-
 #ROPgadget written by salwan, libc fingerprinter, checksec.sh slimm609, libc database niklasb, file (bash file)
 #85a471229b705a3cd3db22499a0bc8acc8d8b4fd
-import time, json, copy, datetime, requests, re, wget, hashlib, binascii, os
+import time, json, copy, datetime, requests, re, wget, hashlib, binascii, os, logging
 from slackclient import SlackClient
 from subprocess import check_output
 from yelpapi import YelpAPI
@@ -104,7 +104,7 @@ def post_attachment(txt, cnl, att):
     params["username"] = USERNAME
     params["attachments"] = json.dumps(att)
     response = requests.post("https://slack.com/api/chat.postMessage", params=params)
-    print response.content
+    logging.info(response.content)
 
 def upload_file(cnl, content, fn, title):
     files = {"file": content}
@@ -150,13 +150,13 @@ def build_choice(business_dict):
         phone = business_dict["display_phone"]
     elif "phone" in business_dict.keys():
         phone = business_dict["phone"]
-    print name
-    print url
-    print rating
-    print img_url
-    print categories
-    print address
-    print phone
+    logging.info(name)
+    logging.info(url)
+    logging.info(rating)
+    logging.info(img_url)
+    logging.info(categories)
+    logging.info(address)
+    logging.info(phone)
     tmp = Choice(name, url, rating, img_url, categories, address, phone)
     return tmp
 
@@ -179,7 +179,7 @@ def get_pricing(term, indices=[0]):
                 pricing_values.append(result.string)
             else:
                 pricing_values.append(None)
-    print pricing_values
+    logging.info(pricing_values)
     return pricing_values
 
 def build_fr_term(term, result_numbers=[0]):
@@ -207,7 +207,7 @@ def build_fr_term(term, result_numbers=[0]):
 
 #to add: auto extraction/unzipping & recursive directory exploration, bulk analysis when ctfmode, stat, all the tools at the top
 def analyze(sc, data):
-    """usage: !analyze <filename>. Gives useful data about a binary file"""
+    """Usage: !analyze <filename>. Gives useful data about a binary file"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -228,7 +228,7 @@ def analyze(sc, data):
         
             
 def rename(sc, data):
-    """usage: !rename <filename> <new name>. Renames a file"""
+    """Usage: !rename <filename> <new name>. Renames a file"""
     if type(data)==type({}):
         channel = data["channel"]
         filelist = get_filelist()
@@ -250,12 +250,12 @@ def rename(sc, data):
 
 #to add: pull down all challenges on a CTF page, add trello integration
 def bin(sc, data):
-    """usage: !bin <download link>. For giving files to pwnbot when ctfmode is off. alternative usage: !bin grabnext. creates and download a public link for the next uploaded file."""
+    """Usage: !bin <download link>. For giving files to pwnbot when ctfmode is off. alternative usage: !bin grabnext. creates and download a public link for the next uploaded file."""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
             url = (data["data"])[1:-1]
-            print url
+            logging.info(url)
             if data["data"] == "grabnext":
                 global grabnext
                 grabnext = True
@@ -272,18 +272,18 @@ def bin(sc, data):
                     f.write(md5checksum + "\n")
                     f.close()
                     send_msg("File "+ r + "  downloaded successfully", channel)
-                    print "File downloaded successfully"
+                    logging.info("File downloaded successfully")
                 except FileExists:
-                    print "File already exists"
+                    logging.info("File already exists")
                     existing = rawlist[rawlist.index(md5checksum)-1]
                     send_msg("File already exists as " + existing, channel)
                     os.remove(r)
                 except:
-                    print "couldnt find a downloadable file"
+                    logging.info("couldnt find a downloadable file")
                     send_msg("Couldn't find a downloadable file", channel)
 
 def file_list(sc, data):
-    """usage: !filelist. Lists files."""
+    """Usage: !filelist. Lists files."""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -294,7 +294,7 @@ def file_list(sc, data):
             send_msg(output, channel)
 
 def request(sc, data):
-    """usage: !request <filename>. Pwnbot uploads the requested file"""
+    """Usage: !request <filename>. Pwnbot uploads the requested file"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -303,13 +303,13 @@ def request(sc, data):
             if rqfile in filelist:
                 with open(rqfile, "rb") as f:
                     upload_file(channel, f, rqfile, rqfile)
-                    print "File uploaded"
+                    logging.info("File uploaded")
             else:
-                print "File not found"
+                logging.info("File not found")
                 send_msg("Could not find file", channel)
 
 def delete(sc, data):
-    """usage: !delete <filename>. For deleting files that slackbot has downloaded"""
+    """Usage: !delete <filename>. For deleting files that slackbot has downloaded"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -329,9 +329,9 @@ def delete(sc, data):
                 os.remove(data["data"])
             send_msg("File " + data["data"] + " deleted", channel)
 
-#to add: folder organization by CTF
+#to add: folder organization by CTF via !ctfmode <ctf name>
 def ctfmode(sc, data):
-    """ toggle ctfmode which allows creation of public files to pull down files without requiring links"""
+    """Usage: !ctfmode. toggle ctfmode which allows creation of public files to pull down files without requiring links"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -340,7 +340,7 @@ def ctfmode(sc, data):
             send_msg("ctfmode is set to " + str(ctfmode), channel)
          
 def gif(sc, data):
-    """imgur image search"""
+    """Usage: !gif <imgur search>. Imgur image search. leave blank for random (I think)."""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -356,19 +356,19 @@ def gif(sc, data):
                 r = re.compile('href="/gallery(.*)"')
                 ext = r.search(str(result)).group(1)
                 imgurls.append("https://imgur.com" + ext + ".gif")
-            print query
+            logging.info(query)
             if len(imgurls) == 0:
-                print "no results"
+                logging.info("no results")
                 send_msg("No results", channel)
             elif len(imgurls) <= 10 or query == "":
-                print "not enough images, or catchall query"
+                logging.info("not enough images, or catchall query")
                 send_msg(imgurls[randint(0, len(imgurls)-1)], channel)
             else:
                 send_msg(imgurls[randint(0, 10)], channel)
 
 
 def rsvp(sc, data):
-    """indicate that you will be attending the event."""
+    """Usage: !rsvp. Indicate that you will be attending the event."""
     global ATTENDEES, USERS
     if type(data)==type({}):
         if ("user" in data.keys()) and ("channel" in data.keys()):
@@ -383,11 +383,11 @@ def rsvp(sc, data):
                     msg = u"{0} has RSVP'ed".format(name)
                 else:
                     msg = u"{0} is already RSVP'ed".format(name)
-                print msg
+                logging.info(msg)
                 send_msg(msg, channel)
 
 def dersvp(sc, data):
-    """remove name from list of attendees."""
+    """Usage: !dersvp. Remove name from list of attendees."""
     global ATTENDEES, USERS
     if type(data)==type({}):
         if ("user" in data.keys()) and ("channel" in data.keys()):
@@ -402,11 +402,11 @@ def dersvp(sc, data):
                 else:
                     ATTENDEES.remove(user)
                     msg = u"{0} is no longer RSVP'ed".format(name)
-                print msg
+                logging.info(msg)
                 send_msg(msg, channel)
 
 def vote(sc, data):
-    """[choice] cast your vote for choice. Choice can be an existing option's number as shown in !choices, choice name, or a new option."""
+    """Usage: !vote <choice>. Cast your vote for choice. Choice can be an existing option's number as shown in !choices, choice name, or a new option."""
     global CHOICES, VOTES, USERS
     if type(data)==type({}):
         if ("user" in data.keys()) and ("data" in data.keys()) and ("channel" in data.keys()):
@@ -417,7 +417,7 @@ def vote(sc, data):
                 channel = data["channel"]
                 if len(vote_for)>50:
                     msg = u"Restaurant name too long"
-                    print msg
+                    logging.info(msg)
                     send_msg(msg, channel)
                     return
                 user = data["user"]
@@ -461,11 +461,11 @@ def vote(sc, data):
                     CHOICES[index].votes += 1
                     msg = u"Vote recorded: {0} wants {1}".format(USERS[user], CHOICES[index].name)
                 VOTES[user] = index
-                print msg
+                logging.info(msg)
                 send_msg(msg, channel)
 
 def choices(sc, data):
-    """show current choices people are voting on."""
+    """Usage: !choices. Show current choices people are voting on."""
     if type(data)==type({}):
         if "channel" in data.keys():
             if data["channel"] and (type(data["channel"]) in string_types):
@@ -482,12 +482,12 @@ def choices(sc, data):
                             attachments.append(response)
                         '''if choice.url:
                             msg += choice.url + "\n"'''
-                print msg
-                print attachments
+                logging.info(msg)
+                logging.info(attachments)
                 post_attachment(msg, channel, attachments)
     
 def show_poll(sc, data):
-    """show current rankings."""
+    """Usage: !show_poll. Show current rankings."""
     if type(data)==type({}):
         if "channel" in data.keys():
             if data["channel"] and (type(data["channel"]) in string_types):
@@ -499,11 +499,11 @@ def show_poll(sc, data):
                     tmp = sorted(tmp, key=get_key, reverse=True)
                     for index, item in enumerate(tmp):
                         msg += u"{0}. {1} with {2} votes\n".format(index+1, item.name, item.votes)
-                print msg
+                logging.info(msg)
                 send_msg(msg, data["channel"])
     
 def attendees(sc, data):
-    """shows a list of people currently RSVP'ed."""
+    """Usage: !attendees. Shows a list of people currently RSVP'ed."""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -513,26 +513,26 @@ def attendees(sc, data):
                     msg += ", ".join([get_name(sc, user) for user in ATTENDEES])
             else:
                 msg = u"No one currently attending"
-            print msg
+            logging.info(msg)
             send_msg(msg, channel)
 
 def help(sc, data):
-    """displays this message."""
+    """Usage: !help. Displays this message."""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
-            msg = "{0:15}{1}\n".format("!help", help.__doc__)
+            msg = "```{0:15}{1}```\n".format("!help", help.__doc__)
             temp_cmds = COMMANDS
             temp_cmds = sorted(temp_cmds)
             for cmd in temp_cmds:
                 if cmd!="!help":
-                    msg += "{0:15}{1}\n".format(cmd, COMMANDS[cmd].__doc__)
+                    msg += "{0:20}{1}\n".format(cmd, COMMANDS[cmd].__doc__)
             msg.expandtabs
-            print msg
+            logging.info(msg)
             send_msg(msg, channel)
 
 def when(sc, data):
-    """displays when the next food day is"""
+    """Usage: !when. Displays when the next food day is"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
@@ -545,11 +545,11 @@ def when(sc, data):
                 msg = "Today is food day!!1one!"
             else:
                 msg = d.strftime("Next food day is on %A, %B %d, %Y.")
-            print msg
+            logging.info(msg)
             send_msg(msg, channel)
 
 def recommend(sc, data):
-    """[term] get top yelp recommendations for the given term"""
+    """Usage: !recommend <category>. Get top yelp recommendations for the given term"""
     if type(data)==type({}):
         if "channel" in data.keys() and "data" in data.keys():
             if data["data"].strip() and data["channel"].strip():
@@ -565,25 +565,25 @@ def recommend(sc, data):
                             except:
                                 pass
                         msg = u"Top {0} recommendations for {1} near Poly.".format(len(attachments), term)
-                        print attachments
+                        logging.info(attachments)
                         post_attachment(msg, channel, attachments)
                     else:
                         msg = u"No recommendations available."
-                        print msg
+                        logging.info(msg)
                         send_msg(msg, channel)
                 else:
                     msg = u"Recommendation query too long"
                     send_msg(msg, channel)
 
 def source(sc, data):
-    """uploads a snippet with the bot's source code"""
+    """Usage: !source. Uploads a snippet with the bot's source code"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
             filename = __file__
             with open(filename, "rb") as r:
                 response = upload_file(channel, r, filename, filename)
-                print response
+                logging.info(response)
 
 config = {}
 with open("config.json", "r") as r:
@@ -610,44 +610,49 @@ sc = SlackClient(token)
 yelp = YelpAPI(yck, ycs, ytok, yts)
 ctfmode = False
 grabnext = False
+logging.basicConfig(filename = "loggedoutput.log", level = logging.DEBUG)
 if sc.rtm_connect():
     cnl = sc.server.channels.find("food-day")
     while True:
-        read = {}
         try:
-            read = sc.rtm_read()
-        except:
-            if sc.rtm_connect():
+            read = {}
+            try:
                 read = sc.rtm_read()
-        for d in read:
-            if ("type" in d.keys()):
-                if d["type"]=="message" and d['channel']==cnl.id and ("subtype" not in d.keys()):    #for if solid is being a cunt: and d["user"] != "U02JZ4EF3":
-                    
-                    msg = d["text"]
-                    cmd, options = split_msg(msg)
-                    user = d["user"]
-                    args = {"data": options, "user": user, "channel": cnl.id}
-                    if cmd in COMMANDS.keys():
-                        try:
-                            if args["data"] != "":
-                                args["data"].decode('ascii')
-                            print "Calling {0}".format(cmd), "with arguments ", args
-                            COMMANDS[cmd](sc, args)
-                        except UnicodeDecodeError:
-                            print "invalid options"
-                            send_msg("WRONG", args["channel"])
-                if "file" in d and (ctfmode == True or grabnext == True):# and d["user"] != "U02JZ4EF3":
-                    grabnext = False
-                    public_creator = d['file']['permalink_public']
-                    print "File Found. public link creator: {0}".format(public_creator)
-                    #sc.api_call("files.list"
-                    r = requests.get(public_creator)
-                    loc = (r.content).find('"file_header generic_header" href="')
-                    if loc == "":
-                        loc = (r.content).find('img src="')
-                    dllink = (r.content)[35+loc:200+loc]
-                    dllink = dllink[:dllink.find('">')]
-                    print "public download link: ", dllink
-                    args = {"data": "<"+dllink+">", "user": "thisstringneedstobehere", "channel": cnl.id}
-                    bin(sc, args)
-        time.sleep(0.5)
+            except:
+                if sc.rtm_connect():
+                    read = sc.rtm_read()
+            for d in read:
+                if ("type" in d.keys()):
+                    if d["type"]=="message" and d['channel']==cnl.id and ("subtype" not in d.keys()):    #for if solid is being a cunt: and d["user"] != "U02JZ4EF3":
+                        msg = d["text"]
+                        cmd, options = split_msg(msg)
+                        user = d["user"]
+                        logging.info(d["type"] + ", " + d["user"], + ", " + d["channel"] + ", " + d["text"])
+                        args = {"data": options, "user": user, "channel": cnl.id}
+                        if cmd in COMMANDS.keys():
+                            try:
+                                if args["data"] != "":
+                                    args["data"].decode('ascii')
+                                logging.info("Calling {0}".format(cmd) + "with arguments " + str(args))
+                                COMMANDS[cmd](sc, args)
+                            except UnicodeDecodeError:
+                                logging.info("invalid options")
+                                send_msg("WRONG", args["channel"])
+                    if "file" in d and (ctfmode == True or grabnext == True):# and d["user"] != "U02JZ4EF3":
+                        logging.info(d["type"] + ", " + d["file"])
+                        grabnext = False
+                        public_creator = d['file']['permalink_public']
+                        logging.info("File Found. public link creator: {0}".format(public_creator))
+                        #sc.api_call("files.list"
+                        r = requests.get(public_creator)
+                        loc = (r.content).find('"file_header generic_header" href="')
+                        if loc == "":
+                            loc = (r.content).find('img src="')
+                        dllink = (r.content)[35+loc:200+loc]
+                        dllink = dllink[:dllink.find('">')]
+                        logging.info("public download link: " + dllink)
+                        args = {"data": "<"+dllink+">", "user": "download", "channel": cnl.id}
+                        bin(sc, args)
+            time.sleep(0.5)
+        except:
+            logging.warning("Something borked real bad")
