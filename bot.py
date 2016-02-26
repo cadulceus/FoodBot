@@ -1,3 +1,4 @@
+#THIS STRING IS SO THAT PWNBOT DOES NOT DOWNLOAD ITSELF DO NOT DELETE
 #-*- coding: utf-8 -*-
 #ROPgadget written by salwan, libc fingerprinter, checksec.sh slimm609, libc database niklasb, file (bash file)
 #85a471229b705a3cd3db22499a0bc8acc8d8b4fd
@@ -53,8 +54,9 @@ class FileExists(Exception):
 
 #returns the file list without the md5 hashes
 def get_filelist():
-    with open("filelist.txt", "r") as f:
-        rawlist = (f.read()).split()
+    global current_dir
+    with open(current_dir+"filelist.txt", "r") as f:
+        rawlist = (f.read()).split("\n")
         x = 0
         filelist = []
         while x < len(rawlist):
@@ -211,17 +213,18 @@ def analyze(sc, data):
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
+            #if data["data"] allow directory specific commands
+            global current_dir
             filename = data["data"]
             if filename in get_filelist():
-                outstring = ""
-                file_out = check_output(["file", filename])
-                outstring += file_out + "\n---------------------------\n"
+                outstring = "```"
+                file_out = check_output(["file", current_dir+filename])
+                outstring += file_out + "\n======================\n"
                 filetype = file_out[len(filename)+2:file_out.find(",")]
-                stat_out = check_output(["stat", filename])
-                outstring += stat_out[:stat_out.find("\nAccess: ")] + "\n---------------------------\n"
-                binwalk_out = check_output(["binwalk", filename])
-                outstring += binwalk_out + "\n"
-
+                stat_out = check_output(["stat", current_dir+filename])
+                outstring += stat_out[:stat_out.find("\nAccess: ")] + "\n======================\n"
+                binwalk_out = check_output(["binwalk", current_dir+filename])
+                outstring += binwalk_out[:-1] + "```"
                 send_msg(outstring, channel)
             else:
                 send_msg("File does not exist", channel)
@@ -230,23 +233,29 @@ def analyze(sc, data):
 def rename(sc, data):
     """Usage: !rename <filename> <new name>. Renames a file"""
     if type(data)==type({}):
-        channel = data["channel"]
-        filelist = get_filelist()
-        rawlist = open("filelist.txt", "r").read().split()
-        params = data["data"].split()
-        if params[0] in filelist and len(params)==2:
-            os.rename(params[0], params[1])
-            f = open("filelist.txt", "w")
-            for raw in rawlist:
-                if raw == params[0]:
-                    f.write(params[1] + "\n")
-                else:
-                    f.write(raw + "\n")
-            send_msg("File sucessfully renamed to " + params[1], channel)
-        elif len(params)==2:
-            send_msg("Invalid parameters")
-        else:
-            send_msg("File does not exist")
+        try:
+            channel = data["channel"]
+            global current_dir
+            filelist = get_filelist()
+            rawlist = open(current_dir+"filelist.txt", "r").read().split()
+            params = data["data"].split()
+            if "/" in params[1] or params[1] in os.listdir(current_dir):
+                raise Exception
+            if params[0] in filelist and len(params)==2:
+                os.rename(current_dir+params[0], current_dir+params[1])
+                f = open(current_dir+"filelist.txt", "w")
+                for raw in rawlist:
+                    if raw == params[0]:
+                        f.write(params[1] + "\n")
+                    else:
+                        f.write(raw + "\n")
+                send_msg("File sucessfully renamed to " + params[1], channel)
+            elif len(params)==2:
+                send_msg("Invalid parameters", channel)
+            else:
+                send_msg("File does not exist", channel)
+        except: #to do: better exception handling
+            send_msg("Invalid rename", channel)
 
 #to add: pull down all challenges on a CTF page, add trello integration
 def bin(sc, data):
@@ -256,6 +265,7 @@ def bin(sc, data):
             channel = data["channel"]
             url = (data["data"])[1:-1]
             logging.info(url)
+            global current_dir
             if data["data"] == "grabnext":
                 global grabnext
                 grabnext = True
@@ -264,14 +274,17 @@ def bin(sc, data):
                 try:
                     r = wget.download(url)
                     md5checksum = hashlib.md5(open(r).read()).hexdigest()
-                    rawlist = (open("filelist.txt", "r").read()).split()
+                    rawlist = (open(current_dir+"filelist.txt", "r").read()).split()
                     if md5checksum in rawlist:
                         raise FileExists()
-                    f = open("filelist.txt", "a")
+                    f = open(current_dir+"filelist.txt", "a")
                     f.write(r + "\n")
                     f.write(md5checksum + "\n")
                     f.close()
-                    send_msg("File "+ r + "  downloaded successfully", channel)
+                    if current_dir != "./":
+                        send_msg("File "+ r + "  downloaded successfully to group " + current_dir[1:], channel)
+                    else: 
+                        send_msg("File" + r + " downloaded successfully", channel)
                     logging.info("File downloaded successfully")
                 except FileExists:
                     logging.info("File already exists")
@@ -288,20 +301,22 @@ def file_list(sc, data):
         if "channel" in data.keys():
             channel = data["channel"]
             filelist = get_filelist()
-            output = ""
+            output = "```"
             for item in filelist:
                 output += item + "\n"
+            output = output[:-1] + "```"
             send_msg(output, channel)
 
 def request(sc, data):
     """Usage: !request <filename>. Pwnbot uploads the requested file"""
     if type(data)==type({}):
         if "channel" in data.keys():
+            global current_dir
             channel = data["channel"]
             filelist = get_filelist()
             rqfile = data["data"]
             if rqfile in filelist:
-                with open(rqfile, "rb") as f:
+                with open(current_dir+rqfile, "rb") as f:
                     upload_file(channel, f, rqfile, rqfile)
                     logging.info("File uploaded")
             else:
@@ -313,11 +328,12 @@ def delete(sc, data):
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
-            f = open("filelist.txt", "r")
+            global current_dir
+            f = open(current_dir+"filelist.txt", "r")
             slist = (f.read()).split()
             f.close()
             if data["data"] in slist:
-                f = open("filelist.txt", "w")
+                f = open(current_dir+"filelist.txt", "w")
                 md5flag = False
                 for fil in slist:
                     if fil != data["data"] and md5flag == False:
@@ -327,16 +343,30 @@ def delete(sc, data):
                     else:
                         md5flag = False
                 os.remove(data["data"])
-            send_msg("File " + data["data"] + " deleted", channel)
+                send_msg("File " + data["data"] + " deleted", channel)
+            else:
+                send_msg("File not found", channel)
 
 #to add: folder organization by CTF via !ctfmode <ctf name>
 def ctfmode(sc, data):
-    """Usage: !ctfmode. toggle ctfmode which allows creation of public files to pull down files without requiring links"""
+    """Usage: !ctfmode <ctfname>. toggle ctfmode which allows creation of public files to pull down files without requiring links"""
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
             global ctfmode
+            global current_dir
             ctfmode = not ctfmode
+            current_dir ="./"
+            if data["data"] != "" and ctfmode == True:
+                ctfname = process_text(data["data"])
+                if not os.path.exists(data["data"]):
+                    os.mkdir(ctfname)
+                    f = open(current_dir+"filelist.txt", "a")
+                    f.write("CTF Folder: " + ctfname + "\n")
+                    f.write("FOLDER\n")
+                    f.close()
+                current_dir = ctfname+"/"
+                f = open(current_dir+"filelist.txt", "a")
             send_msg("ctfmode is set to " + str(ctfmode), channel)
          
 def gif(sc, data):
@@ -521,13 +551,14 @@ def help(sc, data):
     if type(data)==type({}):
         if "channel" in data.keys():
             channel = data["channel"]
-            msg = "```{0:15}{1}```\n".format("!help", help.__doc__)
+            msg = "```{0:15}{1}\n".format("!help", help.__doc__)
             temp_cmds = COMMANDS
             temp_cmds = sorted(temp_cmds)
             for cmd in temp_cmds:
                 if cmd!="!help":
-                    msg += "{0:20}{1}\n".format(cmd, COMMANDS[cmd].__doc__)
+                    msg += "{0:15}{1}\n".format(cmd, COMMANDS[cmd].__doc__)
             msg.expandtabs
+            msg += "```"
             logging.info(msg)
             send_msg(msg, channel)
 
@@ -610,49 +641,50 @@ sc = SlackClient(token)
 yelp = YelpAPI(yck, ycs, ytok, yts)
 ctfmode = False
 grabnext = False
+current_dir = "./"
 logging.basicConfig(filename = "loggedoutput.log", level = logging.DEBUG)
 if sc.rtm_connect():
-    cnl = sc.server.channels.find("food-day")
+    cnl = sc.server.channels.find("pwnbot-testing")
     while True:
+        #try:
+        read = {}
         try:
-            read = {}
-            try:
-                read = sc.rtm_read()
-            except:
-                if sc.rtm_connect():
-                    read = sc.rtm_read()
-            for d in read:
-                if ("type" in d.keys()):
-                    if d["type"]=="message" and d['channel']==cnl.id and ("subtype" not in d.keys()):    #for if solid is being a cunt: and d["user"] != "U02JZ4EF3":
-                        msg = d["text"]
-                        cmd, options = split_msg(msg)
-                        user = d["user"]
-                        logging.info(d["type"] + ", " + d["user"], + ", " + d["channel"] + ", " + d["text"])
-                        args = {"data": options, "user": user, "channel": cnl.id}
-                        if cmd in COMMANDS.keys():
-                            try:
-                                if args["data"] != "":
-                                    args["data"].decode('ascii')
-                                logging.info("Calling {0}".format(cmd) + "with arguments " + str(args))
-                                COMMANDS[cmd](sc, args)
-                            except UnicodeDecodeError:
-                                logging.info("invalid options")
-                                send_msg("WRONG", args["channel"])
-                    if "file" in d and (ctfmode == True or grabnext == True):# and d["user"] != "U02JZ4EF3":
-                        logging.info(d["type"] + ", " + d["file"])
-                        grabnext = False
-                        public_creator = d['file']['permalink_public']
-                        logging.info("File Found. public link creator: {0}".format(public_creator))
-                        #sc.api_call("files.list"
-                        r = requests.get(public_creator)
-                        loc = (r.content).find('"file_header generic_header" href="')
-                        if loc == "":
-                            loc = (r.content).find('img src="')
-                        dllink = (r.content)[35+loc:200+loc]
-                        dllink = dllink[:dllink.find('">')]
-                        logging.info("public download link: " + dllink)
-                        args = {"data": "<"+dllink+">", "user": "download", "channel": cnl.id}
-                        bin(sc, args)
-            time.sleep(0.5)
+            read = sc.rtm_read()
         except:
-            logging.warning("Something borked real bad")
+            if sc.rtm_connect():
+                read = sc.rtm_read()
+        for d in read:
+            if ("type" in d.keys()):
+                if d["type"]=="message" and d['channel']==cnl.id and ("subtype" not in d.keys()):    #for if solid is being a cunt: and d["user"] != "U02JZ4EF3":
+                    msg = d["text"]
+                    cmd, options = split_msg(msg)
+                    user = d["user"]
+                    logging.info(d["type"] + ", " + d["user"] + ", " + d["channel"] + ", " + d["text"])
+                    args = {"data": options, "user": user, "channel": cnl.id}
+                    if cmd in COMMANDS.keys():
+                        try:
+                            if args["data"] != "":
+                                args["data"].decode('ascii')
+                            logging.info("Calling {0}".format(cmd) + "with arguments " + str(args))
+                            COMMANDS[cmd](sc, args)
+                        except UnicodeDecodeError:
+                            logging.info("invalid options")
+                            send_msg("WRONG", args["channel"])
+                if "file" in d and (ctfmode == True or grabnext == True) and d["file"]["preview"] != "#THIS STRING IS SO THAT PWNBOT DOES NOT DOWNLOAD ITSELF DO NOT DELETE":# and d["user"] != "U02JZ4EF3":
+                    logging.info(str(d["type"]) + ", " + str(d["file"]))
+                    grabnext = False
+                    public_creator = d['file']['permalink_public']
+                    logging.info("File Found. public link creator: {0}".format(public_creator))
+                    #sc.api_call("files.list"
+                    r = requests.get(public_creator)
+                    loc = (r.content).find('"file_header generic_header" href="')
+                    if loc == "":
+                        loc = (r.content).find('img src="')
+                    dllink = (r.content)[35+loc:200+loc]
+                    dllink = dllink[:dllink.find('">')]
+                    logging.info("public download link: " + dllink)
+                    args = {"data": "<"+dllink+">", "user": "download", "channel": cnl.id}
+                    bin(sc, args)
+        time.sleep(0.5)
+        #except:
+         #   logging.warning("Something borked real bad")
